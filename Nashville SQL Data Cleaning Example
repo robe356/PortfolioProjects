@@ -1,0 +1,250 @@
+-- This is a portfolio example of how I cleaned data from the Nashville Realestate data set. Dataset Link(https://github.com/AlexTheAnalyst/PortfolioProjects/blob/main/Nashville%20Housing%20Data%20for%20Data%20Cleaning.xlsx)
+
+
+/*
+Cleaning Data in SQL Queries
+*/
+
+
+Select *
+From [Portfolio Project]..Nashvillehousing$
+
+--------------------------------------------------------------------------------------------------------------------------
+
+-- Standardize Date Format
+
+Select SaleDateconverted, CONVERT(Date,SaleDate)
+From [Portfolio Project]..[Nashvillehousing$]
+
+
+Update [Portfolio Project]..[Nashvillehousing$]
+SET SaleDate = CONVERT(Date,SaleDate)
+
+-- If it doesn't Update properly
+
+ALTER TABLE [Portfolio Project]..[Nashvillehousing$]
+Add SaleDateConverted Date;
+
+Update [Portfolio Project]..[Nashvillehousing$]
+SET SaleDateConverted = CONVERT(Date,SaleDate)
+
+ --------------------------------------------------------------------------------------------------------------------------
+
+-- Populate Property Address data
+
+Select PropertyAddress
+From [Portfolio Project]..[Nashvillehousing$]
+ order by ParcelID
+ --where PropertyAddress is null
+
+
+ Select a.ParcelID, a.PropertyAddress, b.ParcelID, b.PropertyAddress, ISNULL (a.propertyaddress, b.PropertyAddress)
+From [Portfolio Project]..[Nashvillehousing$] A
+join [Portfolio Project]..[Nashvillehousing$] B
+	on A.ParcelID = B.ParcelID
+	and A.[UniqueID ] <> b.[UniqueID ]
+where a.PropertyAddress is null
+
+update a
+Set propertyaddress = ISNULL(a.propertyaddress, b.PropertyAddress)
+From [Portfolio Project]..[Nashvillehousing$] A
+join [Portfolio Project]..[Nashvillehousing$] B
+	on A.ParcelID = B.ParcelID
+	and A.[UniqueID ] <> b.[UniqueID ]
+where a.PropertyAddress is null
+
+--------------------------------------------------------------------------------------------------------------------------
+
+-- Breaking out Address into Individual Columns (Address, City, State)
+
+
+
+Select PropertyAddress
+From [Portfolio Project]..[Nashvillehousing$]
+
+select
+SUBSTRING(PropertyAddress, 1, CHARINDEX(',',propertyaddress)-1) as Address
+, SUBSTRING(PropertyAddress, CHARINDEX(',',propertyaddress)+1, len(PropertyAddress)) as City
+
+
+From [Portfolio Project]..[Nashvillehousing$]
+
+ALTER TABLE [Portfolio Project]..[Nashvillehousing$]
+Add PropertySplitAddress Nvarchar(255);
+
+Update [Portfolio Project]..[Nashvillehousing$]
+SET PropertySplitAddress = SUBSTRING(PropertyAddress, 1, CHARINDEX(',',propertyaddress)-1)
+
+ALTER TABLE [Portfolio Project]..[Nashvillehousing$]
+Add PropertySplitCity Nvarchar(255);
+
+Update [Portfolio Project]..[Nashvillehousing$]
+SET PropertySplitCity = SUBSTRING(PropertyAddress, CHARINDEX(',',propertyaddress)+1, len(PropertyAddress))
+
+
+Select *
+From [Portfolio Project]..[Nashvillehousing$]
+
+
+
+
+Select OwnerAddress
+From [Portfolio Project]..[Nashvillehousing$]
+
+
+select 
+PARSENAME(replace(owneraddress, ',','.'), 3)
+,PARSENAME(replace(owneraddress, ',','.'), 2)
+,PARSENAME(replace(owneraddress, ',','.'), 1)
+From [Portfolio Project]..[Nashvillehousing$]
+
+ALTER TABLE [Portfolio Project]..[Nashvillehousing$]
+Add PropertySplitOwnerAddress Nvarchar(255);
+
+Update [Portfolio Project]..[Nashvillehousing$]
+SET PropertySplitOwnerAddress = PARSENAME(replace(owneraddress, ',','.'), 3)
+
+ALTER TABLE [Portfolio Project]..[Nashvillehousing$]
+Add PropertySplitOwnerCity Nvarchar(255);
+
+Update [Portfolio Project]..[Nashvillehousing$]
+SET PropertySplitOwnerCity = PARSENAME(replace(owneraddress, ',','.'), 2)
+
+ALTER TABLE [Portfolio Project]..[Nashvillehousing$]
+Add PropertySplitOwnerState Nvarchar(255);
+
+Update [Portfolio Project]..[Nashvillehousing$]
+SET PropertySplitOwnerState = PARSENAME(replace(owneraddress, ',','.'), 1)
+
+
+--------------------------------------------------------------------------------------------------------------------------
+
+
+-- Change Y and N to Yes and No in "Sold as Vacant" field
+
+
+Select Distinct(SoldAsVacant), COUNT(SoldasVacant)
+From [Portfolio Project]..[Nashvillehousing$]
+
+group by SoldAsVacant
+order by 2
+
+Select SoldAsVacant
+, case when SoldAsVacant = 'y' then 'yes'
+		when SoldAsVacant = 'n' then 'no'
+		else SoldAsVacant
+		end
+From [Portfolio Project]..[Nashvillehousing$]
+
+Update [Portfolio Project]..[Nashvillehousing$]
+SET SoldAsVacant = case when SoldAsVacant = 'y' then 'yes'
+		when SoldAsVacant = 'n' then 'no'
+		else SoldAsVacant
+		end
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-- Remove Duplicates
+WITH rownumcte as(
+Select *, 
+ROW_NUMBER() over(
+	partition by Parcelid, 
+				Propertyaddress,
+				Saleprice,
+				Saledate,
+				Legalreference
+				order by 
+					uniqueid
+					) row_num
+
+From [Portfolio Project]..[Nashvillehousing$]
+--order by ParcelID
+)
+
+select *
+from rownumcte
+where row_num >1
+--order by PropertyAddress
+
+Select *
+From [Portfolio Project]..[Nashvillehousing$]
+
+
+
+---------------------------------------------------------------------------------------------------------
+
+-- Delete Unused Columns
+
+
+
+
+Select *
+From [Portfolio Project]..[Nashvillehousing$]
+order by SalePrice
+
+alter table [Portfolio Project]..[Nashvillehousing$]
+drop column owneraddress,  taxDistrict, PropertyAddress, propertyslpitaddress
+
+
+alter table [Portfolio Project]..[Nashvillehousing$]
+drop column saledate
+
+
+
+
+
+
+
+
+
+
+
+-----------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------
+
+--- Importing Data using OPENROWSET and BULK INSERT	
+
+--  More advanced and looks cooler, but have to configure server appropriately to do correctly
+--  Wanted to provide this in case you wanted to try it
+
+
+--sp_configure 'show advanced options', 1;
+--RECONFIGURE;
+--GO
+--sp_configure 'Ad Hoc Distributed Queries', 1;
+--RECONFIGURE;
+--GO
+
+
+--USE PortfolioProject 
+
+--GO 
+
+--EXEC master.dbo.sp_MSset_oledb_prop N'Microsoft.ACE.OLEDB.12.0', N'AllowInProcess', 1 
+
+--GO 
+
+--EXEC master.dbo.sp_MSset_oledb_prop N'Microsoft.ACE.OLEDB.12.0', N'DynamicParameters', 1 
+
+--GO 
+
+
+---- Using BULK INSERT
+
+--USE PortfolioProject;
+--GO
+--BULK INSERT nashvilleHousing FROM 'C:\Temp\SQL Server Management Studio\Nashville Housing Data for Data Cleaning Project.csv'
+--   WITH (
+--      FIELDTERMINATOR = ',',
+--      ROWTERMINATOR = '\n'
+--);
+--GO
+
+
+---- Using OPENROWSET
+--USE PortfolioProject;
+--GO
+--SELECT * INTO nashvilleHousing
+--FROM OPENROWSET('Microsoft.ACE.OLEDB.12.0',
+--    'Excel 12.0; Database=C:\Users\alexf\OneDrive\Documents\SQL Server Management Studio\Nashville Housing Data for Data Cleaning Project.csv', [Sheet1$]);
+--GO
